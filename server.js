@@ -3,9 +3,12 @@ const { createClient } = require('@supabase/supabase-js')
 require('dotenv').config()
 
 const app = express()
-const PORT = 5000
+const PORT = 8800
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_API_KEY)
+
+// Static Folder
+app.use(express.static('public'));
 
 app.use(express.urlencoded({ extended: true }))
 app.set('view engine', 'ejs')
