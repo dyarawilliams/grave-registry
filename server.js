@@ -17,64 +17,121 @@ app.set('views', './views')
 
 // Middleware 
 app.use(session({
-    secret: 'your secret',
+    secret: 'your secret key',
     saveUninitialized: true,
     cookie: {
-        maxAge: 600000
+        maxAge: 600000 // 10 minutes in milliseconds
     }
 }))
 
+// Serve the main search form
 app.get('/', (req, res) => {
-    res.render('index', { records: null })
-})
+    res.render('index', { records: null });
+});
 
 app.get('/loginPage', (req, res) => {
-    res.render('login')
-})
+    res.render('login');
+});
 
 app.get('/updatePage', (req, res) => {
     if (req.session.authenticated) {
-        res.render('update', {record: null, message: null})
+        res.render('update', { record: null, message: null });
     } else {
         res.render('login')
     }
-})
+});
 
 app.post('/login', async (req, res) => {
-    const { username, password } = req.body
-    
+    const { username, password } = req.body;
+    console.log(username + " " + password)
+
     let { data, error } = await supabase.auth.signInWithPassword({
         email: username,
-        password: password
-    })
+        password: password,
+    });
 
-    if(error) {
-        console.error('login error:', error.message)
-        return res.status(401).send('Login failure. Please contact library administrator.')
+    if (error) {
+        console.error('Login error', error.message);
+        return res.status(401).send('Login failed. Please try again or contact a library administrator.');
     }
 
+    // Store user information in session
     req.session.userId = 'admin'
-    req.sessionauthenticated = true
+    req.session.authenticated = true;
 
-    res.redirect('/updatePage')
-})
+    res.redirect('/updatePage');
+});
 
 app.get('/logout', (req, res) => {
-    req.session.destroy((error) => {
-        if(error) {
-            console.error('Session not destroyed', err)
-            return res.status(500).send('Could not log out, please try again')
+    req.session.destroy((err) => {
+        if (err) {
+            console.error('Session destruction error', err);
+            return res.status(500).send('Could not log out, please try again');
         }
-        res.redirect('/')
-    })
-})
 
+        res.redirect('/'); // Redirect to the home page or login page after logging out
+    });
+});
+
+
+// Handle search requests
 app.get('/search', async (req, res) => {
     const { lastName, firstName, birthYear, deathYear } = req.query;
-  
+
     let query = supabase
         .from('grave_register')
         .select(`
+          name_last,
+          name_maiden,
+          name_first,
+          name_middle,
+          title,
+          birth_date,
+          death_date,
+          age,
+          is_veteran,
+          section,
+          lot,
+          moved_from,
+          moved_to_lot,
+          notes
+      `)
+        .order('name_last', { ascending: true });
+
+    if (lastName) {
+        query = query.ilike('name_last', `%${lastName}%`);
+    }
+    if (firstName) {
+        query = query.ilike('name_first', `%${firstName}%`);
+    }
+    if (birthYear) {
+        query = query.eq('birth_year', birthYear);
+    }
+    if (deathYear) {
+        query = query.eq('death_year', deathYear);
+    }
+
+    try {
+        let { data, error } = await query;
+        if (error) {
+            throw error;
+        }
+        console.log(data)
+        res.render('index', { records: data });
+    } catch (error) {
+        console.error('Error:', error.message);
+        res.status(500).send('Internal Server Error');
+    }
+});
+
+app.get('/getUpdateRecord', async (req, res) => {
+    const memorialID = req.query.memorialID;
+    //console.log(memorialID)
+
+    let query = supabase
+        .from('grave_register')
+        .select(`
+            memorial_ID,
             name_last,
             name_maiden,
             name_first,
@@ -90,33 +147,53 @@ app.get('/search', async (req, res) => {
             moved_to_lot,
             notes
         `)
-        .order('name_last', { ascending: true });
-  
-    if (lastName) {
-        query = query.ilike('name_last', `%${lastName}%`);
-    }
-    if (firstName) {
-        query = query.ilike('name_first', `%${firstName}%`);
-    }
-    if (birthYear) {
-        query = query.eq('birth_year', birthYear);
-    }
-    if (deathYear) {
-        query = query.eq('death_year', deathYear);
-    }
-  
+        .eq('memorial_ID', memorialID);
+
     try {
         let { data, error } = await query;
         if (error) {
             throw error;
         }
-        // console.log(data)
-        res.render('index', { records: data });
+        let dataObject = data[0]
+        if (dataObject) {
+            res.render('update', { record: dataObject })
+        } else {
+            res.render('update', { record: null, message: 'No matching record found. Please check the value and try again.' })
+        }
     } catch (error) {
         console.error('Error:', error.message);
-        res.status(500).send('Internal Server Error');
     }
-  })
+});
+
+app.post('/updateRecord', async (req, res) => {
+    if (req.session.authenticated) {
+        try {
+            // Call the function to update the record in Supabase
+            const updatedData = await updateRecordInSupabase(req.body);
+            res.render('update', { record: null, message: 'Record Updated Successfully' })
+        } catch (error) {
+            console.error('Error updating record:', error);
+            res.render('update', { record: null, message: 'Error Updating Record. Please try again.' })
+        }
+    } else {
+        res.render('login')
+    }
+});
+
+async function updateRecordInSupabase(formData) {
+    try {
+        const recordId = formData.memorial_ID;
+        delete formData.memorial_ID; // Remove the unique identifier to prevent updating it
+        const { data, error } = await supabase
+            .from('grave_register')
+            .update(formData)
+            .eq('memorial_ID', recordId);
+        if (error) throw error;
+    } catch (error) {
+        console.error('Error updating record in Supabase:', error);
+        throw error; // Rethrow the error to be handled by the calling function
+    }
+}
 
 app.listen(PORT || process.env.PORT, () => {
     console.log(`Server running on port ${PORT}`);
