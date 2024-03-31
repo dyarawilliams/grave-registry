@@ -1,9 +1,10 @@
 const express = require('express')
 const { createClient } = require('@supabase/supabase-js')
+const session = require('express-session')
 require('dotenv').config()
 
 const app = express()
-const PORT = 8800
+const PORT = 3000
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_API_KEY)
 
@@ -14,8 +15,58 @@ app.use(express.urlencoded({ extended: true }))
 app.set('view engine', 'ejs')
 app.set('views', './views')
 
+// Middleware 
+app.use(session({
+    secret: 'your secret',
+    saveUninitialized: true,
+    cookie: {
+        maxAge: 600000
+    }
+}))
+
 app.get('/', (req, res) => {
     res.render('index', { records: null })
+})
+
+app.get('/loginPage', (req, res) => {
+    res.render('login')
+})
+
+app.get('/updatePage', (req, res) => {
+    if (req.session.authenticated) {
+        res.render('update', {record: null, message: null})
+    } else {
+        res.render('login')
+    }
+})
+
+app.post('/login', async (req, res) => {
+    const { username, password } = req.body
+    
+    let { data, error } = await supabase.auth.signInWithPassword({
+        email: username,
+        password: password
+    })
+
+    if(error) {
+        console.error('login error:', error.message)
+        return res.status(401).send('Login failure. Please contact library administrator.')
+    }
+
+    req.session.userId = 'admin'
+    req.sessionauthenticated = true
+
+    res.redirect('/updatePage')
+})
+
+app.get('/logout', (req, res) => {
+    req.session.destroy((error) => {
+        if(error) {
+            console.error('Session not destroyed', err)
+            return res.status(500).send('Could not log out, please try again')
+        }
+        res.redirect('/')
+    })
 })
 
 app.get('/search', async (req, res) => {
