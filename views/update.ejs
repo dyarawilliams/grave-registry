@@ -26,20 +26,22 @@
         <button type="submit">Search</button>
     </form>
 
-    <h1>Search Results</h1>
-    <% if(record) { %>
-        <form action="/updateRecord" method="post">
-            <% for(let field in record) { %>
-                <label for="<%= field %>"><%= field %></label>
-                <input type="text" value="<%= record[field] %>" name="<%= field %>" id="<%= field %>" <%= field === 'memorial_ID' ? 'readonly="readonly"' : '' %>>
-            <% } %>              
-            <button type="submit">Update This Record</button>
-        </form>
-    <% } else if (message) { %>
-        <p><%= message %></p>
-    <% } else {  %>
-        <p>Enter a valid Memorial ID to search for a record.</p>
-    <% } %>  
+    <section id="results">
+        <h2>Search Results</h2>
+        <% if(record) { %>
+            <form action="/updateRecord" method="post">
+                <% for(let field in record) { %>
+                    <label for="<%= field %>"><%= field %></label>
+                    <input type="text" value="<%= record[field] %>" name="<%= field %>" id="<%= field %>" <%= field === 'memorial_ID' ? 'readonly="readonly"' : '' %>>
+                <% } %>              
+                <button type="submit">Update This Record</button>
+            </form>
+        <% } else if (message) { %>
+            <p><%= message %></p>
+        <% } else {  %>
+            <p>Enter a valid Memorial ID to search for a record.</p>
+        <% } %>  
+    </section>
 </body>
 
 </html>
